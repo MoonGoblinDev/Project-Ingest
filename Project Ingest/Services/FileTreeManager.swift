@@ -40,8 +40,6 @@ class FileTreeManager {
         }
         let relativePath = item.path.path.replacingOccurrences(of: basePath, with: "")
         
-        // FIX: Special handling for the root item. It is the container and should never be excluded itself.
-        // Its visibility is guaranteed; we only determine the visibility of its children.
         if relativePath.isEmpty {
             DispatchQueue.main.async { item.isExcluded = false }
             if let children = item.children {

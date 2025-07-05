@@ -40,8 +40,6 @@ class FileService {
             includingPropertiesForKeys: [.isDirectoryKey, .nameKey],
             options: [.skipsHiddenFiles],
             errorHandler: { url, error -> Bool in
-                // This handler is called for any errors encountered during enumeration.
-                // We'll log it and continue.
                 print("Enumerator error at \(url.path): \(error.localizedDescription)")
                 return true
             }
@@ -60,34 +58,26 @@ class FileService {
         
         // Iterate over all the files and folders provided by the enumerator.
         for case let fileURL as URL in enumerator {
-            // Find the parent item for the current URL by looking in our map.
             let parentURL = fileURL.deletingLastPathComponent()
             guard let parentItem = pathToItemMap[parentURL] else {
-                // This case is unlikely but could happen with complex file systems.
                 print("Warning: Could not find parent for \(fileURL.path). Skipping.")
                 continue
             }
 
             let newItem = FileItem(url: fileURL)
             
-            // REVAMPED: Set the parent reference to enable update propagation.
             newItem.parent = parentItem
             
-            // Set the gitignore-style pattern for the item, used for UI-driven exclusion.
-            // Use the prepared base path for robust relative path calculation.
             let relativePath = fileURL.path.replacingOccurrences(of: basePath, with: "")
             newItem.ignorePattern = newItem.isFolder ? "\(relativePath)/" : String(relativePath)
 
-            // Add the new item to its parent's children array.
             parentItem.children?.append(newItem)
             
-            // If the new item is a folder, add it to our map so it can become a parent for its own children.
             if newItem.isFolder {
                 pathToItemMap[fileURL] = newItem
             }
         }
         
-        // After building the tree, sort the children of each folder alphabetically for a consistent display.
         for item in pathToItemMap.values {
             item.children?.sort(by: { $0.name < $1.name })
         }
@@ -108,7 +98,6 @@ class FileService {
         savePanel.nameFieldStringValue = suggestedName
 
         guard savePanel.runModal() == .OK, let url = savePanel.url else {
-            // User cancelled the save operation, do nothing.
             return
         }
         

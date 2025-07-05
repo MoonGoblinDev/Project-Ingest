@@ -240,7 +240,6 @@ class ProjectIngestViewModel: ObservableObject {
             self.currentError = error
             log("Save operation failed: \(error.localizedDescription)")
         } catch {
-             // Catch any other unexpected errors
             self.currentError = .fileSaveFailed(error)
             log("An unexpected error occurred during save: \(error.localizedDescription)")
         }
@@ -340,13 +339,10 @@ class ProjectIngestViewModel: ObservableObject {
         fileTreeManager.updateExclusionStates(for: rootItem, rootURL: rootURL, ignorePatterns: ignorePatterns, includePatterns: includePatterns)
     }
     
-    /// REVAMPED: Recursively sets the token state of an item and its children back to .idle.
     private func resetAllTokenStates(for item: FileItem) async {
-        // This must be on the MainActor because it modifies a published property.
         item.tokenState = .idle
         
         if item.isFolder, let children = item.children {
-            // Concurrently reset children.
             await withTaskGroup(of: Void.self) { group in
                 for child in children {
                     group.addTask {
@@ -358,7 +354,9 @@ class ProjectIngestViewModel: ObservableObject {
     }
 
     private func log(_ message: String) {
-        let timestamp = Date().formatted(date: .omitted, time: .standard)
-        logMessages.append("[\(timestamp)] \(message)\n")
+        DispatchQueue.main.async {
+            let timestamp = Date().formatted(date: .omitted, time: .standard)
+            self.logMessages.append("[\(timestamp)] \(message)\n")
+        }
     }
 }

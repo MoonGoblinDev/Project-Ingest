@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import Tiktoken
 
 class TokenizationService {
     
@@ -86,12 +87,19 @@ class TokenizationService {
             let count = encoder.encode(value: content).count
             return .calculated(count)
         } catch {
-            // If any error occurs (e.g., file read permission), log it and return a count of 0.
-            // This ensures the loading spinner for this file stops.
             await MainActor.run {
                 logHandler("⚠️ Could not count tokens for \(url.lastPathComponent): \(error.localizedDescription)")
             }
             return .calculated(0)
         }
     }
+}
+
+func getTokenCount(for text: String, model: String) async throws -> Int {
+    guard let encoder = try await Tiktoken.shared.getEncoding(model) else {
+                print("Could not retrieve encoder for model: \(model)")
+                return 0
+            }
+    let tokens = encoder.encode(value: text)
+    return tokens.count
 }

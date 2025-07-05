@@ -1,0 +1,15 @@
+{
+  "originHash" : "b0e18bb0b5a9b1f739994bfdb91a16b40c4a6df66f006cec069b00abc122a7e5",
+  "pins" : [
+    {
+      "identity" : "tiktoken",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/MoonGoblinDev/Tiktoken",
+      "state" : {
+        "branch" : "main",
+        "revision" : "e4c46185b1fed76213fc3cd0f4f26eba9619a41d"
+      }
+    }
+  ],
+  "version" : 3
+}

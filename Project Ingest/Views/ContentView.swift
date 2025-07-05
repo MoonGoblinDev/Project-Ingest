@@ -60,7 +60,6 @@ struct ContentView: View {
                     .padding(.top)
             }
         }
-        // NEW: Add an alert modifier to present errors to the user.
         .alert(item: $viewModel.currentError) { error in
             Alert(
                 title: Text(error.errorDescription ?? "An Error Occurred"),

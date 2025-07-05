@@ -15,14 +15,10 @@ class FileItem: Identifiable, Hashable, ObservableObject {
     let isFolder: Bool
     var children: [FileItem]?
     
-    // REVAMPED: Add a weak reference to the parent to avoid retain cycles.
-    // This is crucial for propagating updates up the tree.
     weak var parent: FileItem?
     
-    // The gitignore-style pattern for this specific item.
     var ignorePattern: String = ""
     
-    // REVAMPED: The didSet observer now triggers an update propagation.
     @Published var isExcluded: Bool = false {
         didSet {
             // If the exclusion state changes, notify ancestors to update their UI.
@@ -38,10 +34,8 @@ class FileItem: Identifiable, Hashable, ObservableObject {
         case calculated(Int)
     }
     
-    // REVAMPED: The didSet observer now triggers an update propagation.
     @Published var tokenState: TokenizationState = .idle {
         didSet {
-            // If the token state changes, notify ancestors to update their UI.
             if oldValue != tokenState {
                 self.propagateUpdate()
             }
@@ -73,12 +67,8 @@ class FileItem: Identifiable, Hashable, ObservableObject {
         }
     }
     
-    // REVAMPED: This function tells SwiftUI that this object and all its ancestors
-    // need to be re-evaluated and redrawn.
     private func propagateUpdate() {
-        // Manually send the 'will change' signal to notify any observing views.
         self.objectWillChange.send()
-        // Recursively call the same method on the parent, creating a chain reaction to the root.
         parent?.propagateUpdate()
     }
 
