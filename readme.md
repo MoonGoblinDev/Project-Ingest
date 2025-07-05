@@ -1,7 +1,7 @@
 # Project Ingest ![Icon-iOS-Default-32x32@2x](https://github.com/user-attachments/assets/9381441c-9b92-4398-8b60-470bc1e1648a)
 
 
-A powerful macOS utility to prepare entire source code projects for use with Large Language Models (LLMs).
+Turn your projects into LLMs friendly prompt
 
 [![Platform](https://img.shields.io/badge/platform-macOS-lightgrey.svg)](https://www.apple.com/macos)
 [![UI Framework](https://img.shields.io/badge/UI-SwiftUI-blue.svg)](https://developer.apple.com/xcode/swiftui/)
