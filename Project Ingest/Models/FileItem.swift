@@ -5,13 +5,9 @@
 //  Created by Bregas Satria Wicaksono on 04/07/25.
 //
 
-// FileItem.swift
 
 import Foundation
 
-// Represents a single file or folder in the file tree.
-// It's Identifiable for SwiftUI's List, Hashable for selection,
-// and ObservableObject to allow modifying properties like isExcluded.
 class FileItem: Identifiable, Hashable, ObservableObject {
     let id: URL
     let name: String
@@ -29,7 +25,6 @@ class FileItem: Identifiable, Hashable, ObservableObject {
     @Published var tokenCount: Int? = nil
 
     // Computed property to calculate total tokens, respecting exclusion.
-    // SwiftUI will re-evaluate this when any of its dependencies (like isExcluded or children's properties) change.
     var displayTokenCount: Int {
         if isExcluded { return 0 }
         
