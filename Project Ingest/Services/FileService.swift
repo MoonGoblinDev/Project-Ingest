@@ -52,6 +52,12 @@ class FileService {
 
         var pathToItemMap: [URL: FileItem] = [rootURL: rootItem]
 
+        // Prepare a base path for creating relative paths. Ensure it ends with a slash.
+        var basePath = rootURL.path
+        if !basePath.hasSuffix("/") {
+            basePath += "/"
+        }
+        
         // Iterate over all the files and folders provided by the enumerator.
         for case let fileURL as URL in enumerator {
             // Find the parent item for the current URL by looking in our map.
@@ -65,7 +71,8 @@ class FileService {
             let newItem = FileItem(url: fileURL)
             
             // Set the gitignore-style pattern for the item, used for UI-driven exclusion.
-            let relativePath = fileURL.path.replacingOccurrences(of: rootURL.path + "/", with: "")
+            // Use the prepared base path for robust relative path calculation.
+            let relativePath = fileURL.path.replacingOccurrences(of: basePath, with: "")
             newItem.ignorePattern = newItem.isFolder ? "\(relativePath)/" : String(relativePath)
 
             // Add the new item to its parent's children array.

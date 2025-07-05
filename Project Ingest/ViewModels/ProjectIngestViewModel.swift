@@ -425,7 +425,13 @@ class ProjectIngestViewModel: ObservableObject {
         var isCurrentlyExcluded = isParentExcluded
         
         if !isCurrentlyExcluded {
-            let relativePath = item.path.path.replacingOccurrences(of: rootURL.path + "/", with: "")
+            // Prepare a base path for creating relative paths. Ensure it ends with a slash.
+            var basePath = rootURL.path
+            if !basePath.hasSuffix("/") {
+                basePath += "/"
+            }
+            let relativePath = item.path.path.replacingOccurrences(of: basePath, with: "")
+            
             isCurrentlyExcluded = IgnorePatternMatcher.isPathExcluded(
                 relativePath: relativePath,
                 isFolder: item.isFolder,
