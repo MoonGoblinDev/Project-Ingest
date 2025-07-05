@@ -1,6 +1,4 @@
-# Project Ingest
-
-![Icon-iOS-Default-512x512@1x](https://github.com/user-attachments/assets/316783c5-cbc0-4519-90e0-8d27f0d77e88)
+# Project Ingest ![Icon-iOS-Default-32x32@2x](https://github.com/user-attachments/assets/9381441c-9b92-4398-8b60-470bc1e1648a)
 
 
 A powerful macOS utility to prepare entire source code projects for use with Large Language Models (LLMs).
@@ -18,20 +16,6 @@ A powerful macOS utility to prepare entire source code projects for use with Lar
 
 Project Ingest streamlines the process of providing code to LLMs. It scans a project directory, lets you filter out irrelevant files, and consolidates all the code into a single, clean markdown file. This saves you from tedious manual copy-pasting and helps you make the most of your LLM's context window.
 
-## Features
-
-*   **🌲 Interactive File Tree:** Visualize and browse your entire project structure.
-*   **✅ Smart Filtering:**
-    *   Click any file or folder to instantly exclude or include it from the output.
-    *   Use `.gitignore`-style patterns (e.g., `*.log`, `build/`) for advanced filtering.
-*   **🤖 Accurate Token Counting:**
-    *   Instantly see the token count for each file and the entire project total.
-    *   Uses `Tiktoken` to calculate token using `gpt-4o` tokenizer.
-*   **🏗️ Include Project Structure:** Optionally add a directory tree to the output to give the LLM better context.
-*   **🚀 Modern & Responsive:** Built with SwiftUI & Appkit, native macOS experience that handles large projects with ease.
-*   **📋 Quick Output:**
-    *   Copy the entire generated content to your clipboard with one click (⌘+⇧+C).
-    *   Save the output as a markdown file (⌘+S).
 
 ## Usage
 
