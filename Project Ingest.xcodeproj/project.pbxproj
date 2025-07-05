@@ -7,12 +7,16 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		90100EB92E1953D500DDD6B6 /* readme.md in Resources */ = {isa = PBXBuildFile; fileRef = 90100EB82E1953CD00DDD6B6 /* readme.md */; };
+		90100EB92E1953D500DDD6B6 /* README.md in Resources */ = {isa = PBXBuildFile; fileRef = 90100EB82E1953CD00DDD6B6 /* README.md */; };
 		90100F0E2E196E7200DDD6B6 /* Tiktoken in Frameworks */ = {isa = PBXBuildFile; productRef = 90100F0D2E196E7200DDD6B6 /* Tiktoken */; };
+		90100F102E19822400DDD6B6 /* PRIVACY_POLICY.md in Resources */ = {isa = PBXBuildFile; fileRef = 90100F0F2E19822400DDD6B6 /* PRIVACY_POLICY.md */; };
+		90100F122E19829400DDD6B6 /* LICENSE.md in Resources */ = {isa = PBXBuildFile; fileRef = 90100F112E19829400DDD6B6 /* LICENSE.md */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		90100EB82E1953CD00DDD6B6 /* readme.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = readme.md; sourceTree = "<group>"; };
+		90100EB82E1953CD00DDD6B6 /* README.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = README.md; sourceTree = "<group>"; };
+		90100F0F2E19822400DDD6B6 /* PRIVACY_POLICY.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = PRIVACY_POLICY.md; sourceTree = "<group>"; };
+		90100F112E19829400DDD6B6 /* LICENSE.md */ = {isa = PBXFileReference; lastKnownFileType = net.daringfireball.markdown; path = LICENSE.md; sourceTree = "<group>"; };
 		90309F082E182D0000BCCD3E /* Project Ingest.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Project Ingest.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -39,7 +43,9 @@
 		90309EFF2E182D0000BCCD3E = {
 			isa = PBXGroup;
 			children = (
-				90100EB82E1953CD00DDD6B6 /* readme.md */,
+				90100EB82E1953CD00DDD6B6 /* README.md */,
+				90100F0F2E19822400DDD6B6 /* PRIVACY_POLICY.md */,
+				90100F112E19829400DDD6B6 /* LICENSE.md */,
 				90309F0A2E182D0000BCCD3E /* Project Ingest */,
 				90309F092E182D0000BCCD3E /* Products */,
 			);
@@ -121,7 +127,9 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				90100EB92E1953D500DDD6B6 /* readme.md in Resources */,
+				90100F122E19829400DDD6B6 /* LICENSE.md in Resources */,
+				90100F102E19822400DDD6B6 /* PRIVACY_POLICY.md in Resources */,
+				90100EB92E1953D500DDD6B6 /* README.md in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
