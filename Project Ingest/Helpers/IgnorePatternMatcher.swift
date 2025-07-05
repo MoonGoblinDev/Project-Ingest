@@ -18,16 +18,34 @@ struct IgnorePatternMatcher {
     ///   - patterns: An array of gitignore-style patterns.
     /// - Returns: `true` if the path matches a pattern, `false` otherwise.
     static func isPathExcluded(relativePath: String, isFolder: Bool, by patterns: [String]) -> Bool {
-        for pattern in patterns {
-            let flags = FNM_PATHNAME | FNM_LEADING_DIR
-            
-            let pathToCheck = isFolder ? (relativePath + "/") : relativePath
-            if pathToCheck.hasPrefix(pattern) {
-                return true
-            }
+        // Use URL to reliably get the last path component (the basename).
+        let pathBasename = URL(fileURLWithPath: relativePath).lastPathComponent
 
-            if fnmatch(pattern, relativePath, flags) == 0 {
-                return true
+        for pattern in patterns {
+            let patternHasSlash = pattern.contains("/")
+            
+            // This is the core gitignore logic:
+            // 1. If a pattern has NO slash, it matches a filename in ANY directory.
+            //    Example: `*.swift` should match `App/Views/ContentView.swift`.
+            if !patternHasSlash {
+                // We test the pattern against just the basename of the path.
+                if fnmatch(pattern, pathBasename, 0) == 0 {
+                    return true
+                }
+            }
+            // 2. If a pattern HAS a slash, it's matched against the full relative path from the project root.
+            //    Example: `App/Models/` should match the path `App/Models/User.swift`.
+            else {
+                // We use FNM_PATHNAME to ensure slashes are treated as path separators.
+                // We also check for directory prefix matches, e.g. pattern `build/` should match file `build/main.o`.
+                let pathToCheck = isFolder ? (relativePath + "/") : relativePath
+                if pathToCheck.hasPrefix(pattern) {
+                    return true
+                }
+
+                if fnmatch(pattern, relativePath, FNM_PATHNAME) == 0 {
+                    return true
+                }
             }
         }
         return false

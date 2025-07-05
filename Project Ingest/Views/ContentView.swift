@@ -126,10 +126,21 @@ struct ContentView: View {
             .listStyle(.sidebar)
 
             VStack(alignment: .leading, spacing: 10) {
-                DisclosureGroup("Exclude Patterns (gitignore style)") {
+                DisclosureGroup("􀋯 Exclude Patterns") {
                     TextEditor(text: $viewModel.ignorePatterns)
                         .font(.monospaced(.body)())
                         .frame(height: 150)
+                        .background(in: RoundedRectangle(cornerRadius: 4))
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 4)
+                                .stroke(Color.secondary.opacity(0.3), lineWidth: 1)
+                        )
+                }
+                
+                DisclosureGroup("􀋭 Include Patterns") {
+                    TextEditor(text: $viewModel.includePatterns)
+                        .font(.monospaced(.body)())
+                        .frame(height: 100)
                         .background(in: RoundedRectangle(cornerRadius: 4))
                         .overlay(
                             RoundedRectangle(cornerRadius: 4)

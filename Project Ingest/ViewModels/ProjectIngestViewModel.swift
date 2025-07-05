@@ -41,6 +41,17 @@ class ProjectIngestViewModel: ObservableObject {
         }
     }
     
+    @Published var includePatterns: String = "" {
+        didSet {
+            if let url = sourceFolderURL {
+                let key = lastIncludePatternsKey + "-\(url.path.hashValue)"
+                UserDefaults.standard.set(includePatterns, forKey: key)
+            }
+            updateAllExclusionStates()
+            clearIngestedContent()
+        }
+    }
+    
     @Published var ingestedContent: String = ""
     @Published var logMessages: String = ""
     
@@ -65,7 +76,7 @@ class ProjectIngestViewModel: ObservableObject {
         }
     }
     
-    @Published var includeProjectStructure: Bool = false {
+    @Published var includeProjectStructure: Bool = true {
         didSet {
             clearIngestedContent()
         }
@@ -80,6 +91,7 @@ class ProjectIngestViewModel: ObservableObject {
     /// This property holds the URL that currently has an active security scope.
     private var activeScopedURL: URL?
     private let lastIgnorePatternsKey = "lastIgnorePatterns"
+    private let lastIncludePatternsKey = "lastIncludePatterns"
     
     // MARK: - Services
     private let fileService = FileService()
@@ -295,11 +307,20 @@ class ProjectIngestViewModel: ObservableObject {
         self.sourceFolderURL = url
         self.folderPath = url.path
         
-        let key = self.lastIgnorePatternsKey + "-\(url.path.hashValue)"
-        if let savedPatterns = UserDefaults.standard.string(forKey: key) {
+        let ignoreKey = self.lastIgnorePatternsKey + "-\(url.path.hashValue)"
+        if let savedPatterns = UserDefaults.standard.string(forKey: ignoreKey) {
             self.ignorePatterns = savedPatterns
             self.log("Loaded ignore patterns for '\(url.lastPathComponent)'.")
         }
+        
+        let includeKey = self.lastIncludePatternsKey + "-\(url.path.hashValue)"
+        if let savedPatterns = UserDefaults.standard.string(forKey: includeKey) {
+            self.includePatterns = savedPatterns
+            self.log("Loaded include patterns for '\(url.lastPathComponent)'.")
+        } else {
+            self.includePatterns = ""
+        }
+        
         log("Loading folder contents: \(url.path)")
         
         let rootItem = self.fileService.buildFileTree(from: url)
@@ -316,7 +337,7 @@ class ProjectIngestViewModel: ObservableObject {
     private func updateAllExclusionStates() {
         guard let rootItem = self.fileTree.first, let rootURL = self.sourceFolderURL else { return }
         
-        fileTreeManager.updateExclusionStates(for: rootItem, rootURL: rootURL, ignorePatterns: ignorePatterns)
+        fileTreeManager.updateExclusionStates(for: rootItem, rootURL: rootURL, ignorePatterns: ignorePatterns, includePatterns: includePatterns)
     }
     
     /// REVAMPED: Recursively sets the token state of an item and its children back to .idle.
