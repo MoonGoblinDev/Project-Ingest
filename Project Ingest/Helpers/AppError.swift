@@ -18,7 +18,7 @@ enum AppError: Error, LocalizedError, Identifiable {
     
     var errorDescription: String? {
         switch self {
-        case .folderAccessFailed(let url):
+        case .folderAccessFailed(_):
             return "Access Denied"
         case .bookmarkResolutionFailed:
             return "Failed to Open Recent Folder"

@@ -22,7 +22,9 @@ struct FileItemView: View {
             
             Spacer()
             
-            if !item.isFolder && item.tokenCount == nil && !item.isExcluded {
+            // Use the isCalculatingTokens property to show a spinner for both files and folders.
+            // This ensures that folders also show a loading indicator while their children's tokens are being calculated.
+            if item.isCalculatingTokens {
                 ProgressView().scaleEffect(0.5)
             } else if item.displayTokenCount > 0 {
                 Text("\(item.displayTokenCount)")

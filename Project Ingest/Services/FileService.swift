@@ -70,6 +70,9 @@ class FileService {
 
             let newItem = FileItem(url: fileURL)
             
+            // REVAMPED: Set the parent reference to enable update propagation.
+            newItem.parent = parentItem
+            
             // Set the gitignore-style pattern for the item, used for UI-driven exclusion.
             // Use the prepared base path for robust relative path calculation.
             let relativePath = fileURL.path.replacingOccurrences(of: basePath, with: "")

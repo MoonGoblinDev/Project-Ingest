@@ -15,26 +15,71 @@ class FileItem: Identifiable, Hashable, ObservableObject {
     let isFolder: Bool
     var children: [FileItem]?
     
+    // REVAMPED: Add a weak reference to the parent to avoid retain cycles.
+    // This is crucial for propagating updates up the tree.
+    weak var parent: FileItem?
+    
     // The gitignore-style pattern for this specific item.
     var ignorePattern: String = ""
     
-    // @Published allows the UI to automatically update when this value changes.
-    @Published var isExcluded: Bool = false
+    // REVAMPED: The didSet observer now triggers an update propagation.
+    @Published var isExcluded: Bool = false {
+        didSet {
+            // If the exclusion state changes, notify ancestors to update their UI.
+            if oldValue != isExcluded {
+                self.propagateUpdate()
+            }
+        }
+    }
     
-    // The number of tokens for this file, calculated asynchronously.
-    @Published var tokenCount: Int? = nil
-
-    // Computed property to calculate total tokens, respecting exclusion.
+    enum TokenizationState: Equatable {
+        case idle
+        case calculating
+        case calculated(Int)
+    }
+    
+    // REVAMPED: The didSet observer now triggers an update propagation.
+    @Published var tokenState: TokenizationState = .idle {
+        didSet {
+            // If the token state changes, notify ancestors to update their UI.
+            if oldValue != tokenState {
+                self.propagateUpdate()
+            }
+        }
+    }
+    
+    // Computed property to calculate total tokens, respecting exclusion and state.
     var displayTokenCount: Int {
         if isExcluded { return 0 }
         
         if isFolder, let children = children {
-            // Sum of children's displayTokenCount
             return children.reduce(0) { $0 + $1.displayTokenCount }
         } else {
-            // Return own token count, or 0 if not yet calculated
-            return tokenCount ?? 0
+            if case .calculated(let count) = tokenState {
+                return count
+            }
+            return 0
         }
+    }
+    
+    // Computed property to determine if tokens are being calculated.
+    var isCalculatingTokens: Bool {
+        if isExcluded { return false }
+        
+        if isFolder, let children = children {
+            return children.contains { !$0.isExcluded && $0.isCalculatingTokens }
+        } else {
+            return tokenState == .calculating
+        }
+    }
+    
+    // REVAMPED: This function tells SwiftUI that this object and all its ancestors
+    // need to be re-evaluated and redrawn.
+    private func propagateUpdate() {
+        // Manually send the 'will change' signal to notify any observing views.
+        self.objectWillChange.send()
+        // Recursively call the same method on the parent, creating a chain reaction to the root.
+        parent?.propagateUpdate()
     }
 
     init(url: URL) {

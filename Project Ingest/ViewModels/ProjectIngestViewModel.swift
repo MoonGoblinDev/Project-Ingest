@@ -12,29 +12,6 @@ import Foundation
 @MainActor
 class ProjectIngestViewModel: ObservableObject {
     
-    // MARK: - Recents Data Structure
-    struct RecentFolder: Identifiable, Hashable {
-        let id = UUID()
-        let url: URL
-        let bookmarkData: Data
-        var name: String {
-            url.lastPathComponent
-        }
-        
-        // Custom Hashable conformance
-        static func == (lhs: RecentFolder, rhs: RecentFolder) -> Bool {
-            lhs.url == rhs.url
-        }
-        func hash(into hasher: inout Hasher) {
-            hasher.combine(url)
-        }
-    }
-    
-    // MARK: - UserDefaults Keys
-    private let recentFoldersKey = "recentFoldersBookmarkData"
-    private let lastIgnorePatternsKey = "lastIgnorePatterns"
-    private let maxRecentsCount = 10
-    
     // MARK: - Published Properties (UI State)
     @Published var folderPath: String = "No Folder Selected"
     @Published var fileTree: [FileItem] = []
@@ -73,7 +50,20 @@ class ProjectIngestViewModel: ObservableObject {
     
     @Published var ingestedTokenCount: Int = 0
     
-    @Published var selectedModel: String = "gpt-4o"
+    @Published var selectedModel: String = "gpt-4o" {
+        didSet {
+            // If the model changes and a folder is loaded, recalculate all tokens.
+            if oldValue != selectedModel, let rootItem = fileTree.first {
+                log("Model changed to \(selectedModel). Recalculating all token counts.")
+                Task {
+                    // Reset all counts to the .idle state
+                    await resetAllTokenStates(for: rootItem)
+                    // Start the new calculation
+                    await tokenizationService.calculateTokensForAllItems(in: rootItem, model: selectedModel)
+                }
+            }
+        }
+    }
     
     @Published var includeProjectStructure: Bool = false {
         didSet {
@@ -82,8 +72,6 @@ class ProjectIngestViewModel: ObservableObject {
     }
     
     @Published var recentFolders: [RecentFolder] = []
-    
-    // NEW: Published property for presenting alerts
     @Published var currentError: AppError?
 
 
@@ -91,28 +79,35 @@ class ProjectIngestViewModel: ObservableObject {
     private var sourceFolderURL: URL?
     /// This property holds the URL that currently has an active security scope.
     private var activeScopedURL: URL?
-    /// The service for handling file system interactions.
+    private let lastIgnorePatternsKey = "lastIgnorePatterns"
+    
+    // MARK: - Services
     private let fileService = FileService()
+    private let fileTreeManager = FileTreeManager()
+    private lazy var recentsManager = RecentsManager(logHandler: { [weak self] in self?.log($0) })
+    private lazy var ingestService = IngestService(logHandler: { [weak self] in self?.log($0) })
+    private lazy var tokenizationService = TokenizationService(logHandler: { [weak self] in self?.log($0) })
 
 
     // MARK: - Initialization
     init() {
-        // Only perform lightweight setup here. Load the list of recents but don't access the file system yet.
-        loadRecentsFromUserDefaults()
+        // Load recents and update the published property.
+        self.recentFolders = recentsManager.recentFolders
     }
     
     // MARK: - UI Actions
     
     /// Called by the view's .onAppear to trigger the initial folder load.
     func loadInitialFolder() {
-        if let mostRecent = recentFolders.first, sourceFolderURL == nil {
+        if let mostRecent = recentsManager.recentFolders.first, sourceFolderURL == nil {
             selectRecentFolder(mostRecent)
         }
     }
     
     func browseForFolder() {
         guard let url = fileService.selectFolder() else { return }
-        addFolderToRecents(url)
+        recentsManager.add(url: url)
+        self.recentFolders = recentsManager.recentFolders
         
         Task {
             await loadFolder(url: url, isFromBookmark: false)
@@ -128,7 +123,9 @@ class ProjectIngestViewModel: ObservableObject {
                 log("Bookmark for \(recent.name) is stale. It will be refreshed upon gaining access.")
             }
             
-            moveRecentToTop(recent)
+            recentsManager.moveToTop(recent)
+            self.recentFolders = recentsManager.recentFolders
+            
             Task {
                 await loadFolder(url: url, isFromBookmark: true, isStale: isStale)
             }
@@ -142,9 +139,8 @@ class ProjectIngestViewModel: ObservableObject {
     }
     
     func clearRecents() {
-        recentFolders.removeAll()
-        UserDefaults.standard.removeObject(forKey: recentFoldersKey)
-        log("Cleared all recent folders.")
+        recentsManager.clear()
+        self.recentFolders = recentsManager.recentFolders
     }
     
     func toggleExclusion(for item: FileItem) {
@@ -170,7 +166,7 @@ class ProjectIngestViewModel: ObservableObject {
     }
     
     func startIngest() {
-        guard let sourceURL = sourceFolderURL else {
+        guard let sourceURL = sourceFolderURL, let rootItem = fileTree.first else {
             log("Error: Please select a source folder first.")
             return
         }
@@ -179,13 +175,33 @@ class ProjectIngestViewModel: ObservableObject {
         ingestedContent = ""
         ingestedTokenCount = 0
         logMessages = ""
-        progressValue = 0
-        progressTotal = 1
         log("Starting ingest...")
         
-        // Use a regular Task, not .detached, to inherit actor context and priority.
         Task {
-            await self.performIngest(folderURL: sourceURL)
+            do {
+                let content = try await ingestService.ingestProject(
+                    rootItem: rootItem,
+                    rootURL: sourceURL,
+                    includeStructure: self.includeProjectStructure,
+                    progressUpdate: { [weak self] current, total async in
+                        // This closure is now async, and because the ViewModel is a MainActor,
+                        // these property updates are safely published on the main thread.
+                        self?.progressValue = Double(current)
+                        self?.progressTotal = Double(total)
+                    }
+                )
+                
+                let finalTokenCount = try? await getTokenCount(for: content, model: self.selectedModel)
+                
+                self.ingestedContent = content
+                self.ingestedTokenCount = finalTokenCount ?? 0
+                log("✅ Ingestion complete! Content is ready.")
+                
+            } catch {
+                log("❌ Ingestion failed: \(error.localizedDescription)")
+            }
+            
+            self.isIngesting = false
         }
     }
     
@@ -228,67 +244,9 @@ class ProjectIngestViewModel: ObservableObject {
         }
     }
     
-    private func loadRecentsFromUserDefaults() {
-        log("Loading saved settings...")
-        guard let savedBookmarks = UserDefaults.standard.array(forKey: recentFoldersKey) as? [Data] else {
-            log("No recent folders found.")
-            return
-        }
-        
-        var loadedRecents: [RecentFolder] = []
-        for bookmarkData in savedBookmarks {
-            do {
-                var isStale = false
-                let url = try URL(resolvingBookmarkData: bookmarkData, options: [], relativeTo: nil, bookmarkDataIsStale: &isStale)
-                loadedRecents.append(RecentFolder(url: url, bookmarkData: bookmarkData))
-            } catch {
-                log("Could not resolve a recent folder bookmark during initial load. It may be invalid. Skipping.")
-            }
-        }
-        self.recentFolders = loadedRecents
-        log("Loaded \(loadedRecents.count) recent folders.")
-    }
-    
-    private func addFolderToRecents(_ url: URL) {
-        do {
-            let bookmarkData = try url.bookmarkData(options: .withSecurityScope, includingResourceValuesForKeys: nil, relativeTo: nil)
-            
-            var updatedRecents = self.recentFolders
-            updatedRecents.removeAll { $0.url == url }
-            
-            let newRecent = RecentFolder(url: url, bookmarkData: bookmarkData)
-            updatedRecents.insert(newRecent, at: 0)
-            
-            if updatedRecents.count > maxRecentsCount {
-                updatedRecents = Array(updatedRecents.prefix(maxRecentsCount))
-            }
-            
-            self.recentFolders = updatedRecents
-            
-            let bookmarksToSave = updatedRecents.map { $0.bookmarkData }
-            UserDefaults.standard.set(bookmarksToSave, forKey: recentFoldersKey)
-            
-        } catch {
-            log("⚠️ Could not create bookmark for \(url.path): \(error.localizedDescription)")
-            // This is a non-critical error, so we just log it.
-        }
-    }
-    
-    private func moveRecentToTop(_ recent: RecentFolder) {
-        var updatedRecents = self.recentFolders
-        updatedRecents.removeAll { $0 == recent }
-        updatedRecents.insert(recent, at: 0)
-        self.recentFolders = updatedRecents
-        
-        let bookmarksToSave = updatedRecents.map { $0.bookmarkData }
-        UserDefaults.standard.set(bookmarksToSave, forKey: recentFoldersKey)
-    }
-
-    
     private func removeRecentFolder(basedOn url: URL) {
-        recentFolders.removeAll { $0.url == url }
-        let bookmarksToSave = recentFolders.map { $0.bookmarkData }
-        UserDefaults.standard.set(bookmarksToSave, forKey: recentFoldersKey)
+        recentsManager.remove(url: url)
+        self.recentFolders = recentsManager.recentFolders
     }
     
     /// The centralized function to handle loading a folder and managing its security scope.
@@ -323,7 +281,8 @@ class ProjectIngestViewModel: ObservableObject {
         // 4. If the bookmark was stale, refresh it now that we have access.
         if isStale {
             log("Refreshing stale bookmark...")
-            addFolderToRecents(url)
+            recentsManager.refreshBookmark(for: url)
+            self.recentFolders = recentsManager.recentFolders
         }
         
         // 5. With access active, populate the file tree.
@@ -350,187 +309,31 @@ class ProjectIngestViewModel: ObservableObject {
         self.updateAllExclusionStates()
 
         if rootItem.children?.isEmpty == false {
-            await self.recursivelyUpdateTokenCounts(for: rootItem)
-            self.log("Initial token calculation complete.")
+            await self.tokenizationService.calculateTokensForAllItems(in: rootItem, model: selectedModel)
         }
-    }
-    
-    private func performIngest(folderURL: URL) async {
-        let folderName = folderURL.lastPathComponent
-        log("Processing project: \(folderName)")
-        
-        let filesToProcess = self.collectFilesToProcess(from: self.fileTree)
-        
-        log("Found \(filesToProcess.count) files to process (after filtering).")
-        self.progressTotal = Double(filesToProcess.count)
-
-        var result = "# Project: \(folderName)\n\n"
-        
-        if self.includeProjectStructure {
-            let treeString = generateFileTreeString()
-            if !treeString.isEmpty {
-                result.append(treeString)
-                log("Added project structure to the output.")
-            }
-        }
-
-        for (index, item) in filesToProcess.enumerated() {
-            self.progressValue = Double(index + 1)
-
-            let fileURL = item.path
-            let relativePath = fileURL.path.replacingOccurrences(of: folderURL.path + "/", with: "")
-            
-            do {
-                let content = try String(contentsOf: fileURL, encoding: .utf8)
-                log("Processing (\(index+1)/\(filesToProcess.count)): \(relativePath)")
-
-                if content.contains("\0") {
-                    log("  -> Skipping binary file: \(relativePath)")
-                    continue
-                }
-                
-                let lang = fileURL.pathExtension
-                result.append("---\n\n")
-                result.append("**File:** `\(relativePath)`\n\n")
-                result.append("```\(lang)\n")
-                result.append(content)
-                result.append("\n```\n\n")
-                
-            } catch {
-                log("  -> Could not read file \(relativePath): \(error.localizedDescription)")
-            }
-        }
-        
-        let finalTokenCount = try? await getTokenCount(for: result, model: self.selectedModel)
-        
-        self.ingestedContent = result
-        self.ingestedTokenCount = finalTokenCount ?? 0
-        self.isIngesting = false
-        self.progressValue = self.progressTotal
-        log("✅ Ingestion complete! Content is ready.")
     }
     
     private func updateAllExclusionStates() {
-        guard let rootURL = self.sourceFolderURL, !fileTree.isEmpty else { return }
+        guard let rootItem = self.fileTree.first, let rootURL = self.sourceFolderURL else { return }
         
-        let patterns = self.ignorePatterns.split(separator: "\n")
-            .map { $0.trimmingCharacters(in: .whitespaces) }
-            .filter { !$0.isEmpty && !$0.starts(with: "#") }
-            .map { String($0) }
-        
-        recursivelyUpdateExclusion(for: fileTree[0], with: patterns, relativeTo: rootURL, isParentExcluded: false)
+        fileTreeManager.updateExclusionStates(for: rootItem, rootURL: rootURL, ignorePatterns: ignorePatterns)
     }
     
-    private func recursivelyUpdateExclusion(for item: FileItem, with patterns: [String], relativeTo rootURL: URL, isParentExcluded: Bool) {
-        var isCurrentlyExcluded = isParentExcluded
+    /// REVAMPED: Recursively sets the token state of an item and its children back to .idle.
+    private func resetAllTokenStates(for item: FileItem) async {
+        // This must be on the MainActor because it modifies a published property.
+        item.tokenState = .idle
         
-        if !isCurrentlyExcluded {
-            // Prepare a base path for creating relative paths. Ensure it ends with a slash.
-            var basePath = rootURL.path
-            if !basePath.hasSuffix("/") {
-                basePath += "/"
-            }
-            let relativePath = item.path.path.replacingOccurrences(of: basePath, with: "")
-            
-            isCurrentlyExcluded = IgnorePatternMatcher.isPathExcluded(
-                relativePath: relativePath,
-                isFolder: item.isFolder,
-                by: patterns
-            )
-        }
-        
-        item.isExcluded = isCurrentlyExcluded
-        
-        if let children = item.children {
-            for child in children {
-                recursivelyUpdateExclusion(for: child, with: patterns, relativeTo: rootURL, isParentExcluded: item.isExcluded)
-            }
-        }
-    }
-    
-    private func recalculateAllTokenCounts() {
-        guard !fileTree.isEmpty else { return }
-        Task {
-            await recursivelyUpdateTokenCounts(for: self.fileTree[0])
-            self.log("Token recalculation complete.")
-        }
-    }
-    
-    private func recursivelyUpdateTokenCounts(for item: FileItem) async {
         if item.isFolder, let children = item.children {
+            // Concurrently reset children.
             await withTaskGroup(of: Void.self) { group in
                 for child in children {
                     group.addTask {
-                        await self.recursivelyUpdateTokenCounts(for: child)
+                        await self.resetAllTokenStates(for: child)
                     }
                 }
             }
-        } else if !item.isFolder {
-            let count = await getTokenCountForFile(at: item.path)
-            await MainActor.run {
-                item.tokenCount = count
-            }
         }
-    }
-
-    private func getTokenCountForFile(at url: URL) async -> Int {
-        do {
-            let content = try String(contentsOf: url, encoding: .utf8)
-            guard !content.contains("\0") else { return 0 }
-            return try await getTokenCount(for: content, model: self.selectedModel)
-        } catch {
-             await MainActor.run {
-                self.log("⚠️ Could not count tokens for \(url.lastPathComponent): \(error.localizedDescription)")
-            }
-            return 0
-        }
-    }
-    
-    private func collectFilesToProcess(from items: [FileItem]) -> [FileItem] {
-        var files: [FileItem] = []
-        for item in items {
-            if item.isExcluded { continue }
-
-            if item.isFolder, let children = item.children {
-                files.append(contentsOf: collectFilesToProcess(from: children))
-            } else if !item.isFolder {
-                files.append(item)
-            }
-        }
-        return files.sorted(by: { $0.path.path < $1.path.path })
-    }
-    
-    private func generateFileTreeString() -> String {
-        guard let rootItem = fileTree.first, !rootItem.isExcluded else { return "" }
-        
-        var structure = "**Project Structure:**\n\n"
-        structure += "```\n"
-        structure += "\(rootItem.name)\n"
-        
-        if let children = rootItem.children {
-            structure += generateTreeRecursive(from: children, prefix: "")
-        }
-        
-        structure += "```\n\n"
-        return structure
-    }
-
-    private func generateTreeRecursive(from items: [FileItem], prefix: String) -> String {
-        var result = ""
-        let visibleItems = items.filter { !$0.isExcluded }
-        
-        for (index, item) in visibleItems.enumerated() {
-            let isLast = index == visibleItems.count - 1
-            let connector = isLast ? "└── " : "├── "
-            
-            result += prefix + connector + item.name + "\n"
-            
-            if item.isFolder, let children = item.children {
-                let newPrefix = prefix + (isLast ? "    " : "│   ")
-                result += generateTreeRecursive(from: children, prefix: newPrefix)
-            }
-        }
-        return result
     }
 
     private func log(_ message: String) {
